@@ -23,10 +23,12 @@ public struct AssistantView: View {
     }
 
     public var body: some View {
-        VStack {
+        VStack(spacing: 0, content: {
             BarView {
                 bot.clearHistory()
             }
+            
+            ConnectionIssueView(errorDescription: messages.connectionErrorDescription)
 
             ScrollView(.vertical) {
                 ScrollViewReader { scrollView in
@@ -89,7 +91,7 @@ public struct AssistantView: View {
                             },
                             isMenuExpanded: self.$isMenuExpanded)
             }
-        }
+        })
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification),
                    perform: willMoveBackground)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification),

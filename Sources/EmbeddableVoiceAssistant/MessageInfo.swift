@@ -127,12 +127,14 @@ public class Messages: ObservableObject {
     @Published var list = [MessageInfo]()
     @Published var speechList = [MessageInfo]()
     @Published var actions = [ActionInfo]()
+    @Published var connectionErrorDescription: String? = nil
 
     func fillWithMockData() {
         list.append(MessageInfo.init(type: .response,
                                      text: "Hi, I’m MOC, an open-source Voice Assistant. That's what i can:"))
         list.append(MessageInfo.init(type: .request, text: "What weather will be tomorrow ..."))
         list.append(MessageInfo(type: .card, text: Messages.mockAdaptiveCardJson()))
+        connectionErrorDescription = "Socket connection error"
     }
 
     static func mockAdaptiveCardJson() -> String {

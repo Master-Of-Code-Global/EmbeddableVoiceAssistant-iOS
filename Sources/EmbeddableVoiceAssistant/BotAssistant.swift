@@ -9,6 +9,7 @@ import SwiftUI
 import DirectLine
 import Combine
 import AdaptiveCardUI
+import Reachability
 
 open class BotAssistant: ObservableObject {
     public var messages = Messages()
@@ -20,12 +21,15 @@ open class BotAssistant: ObservableObject {
 
     var requestCancellable: AnyCancellable?
     var postRequestCancellable: AnyCancellable?
+    var statusCancellable: AnyCancellable?
 
     var waitTimer: Timer?
     let maxUpdateInterval: TimeInterval = 2
 
     private var isSendingActivity = false
     private var allowSynthesize = true
+
+    private var reachability = try! Reachability()
 
     public init(_ configuration: BotConfiguration) {
         let auth = Auth.secret(configuration.secretToken)
@@ -39,18 +43,69 @@ open class BotAssistant: ObservableObject {
 
         activityStream = directLine?.getActivityStream()
         initActivityStream()
+        initReachability()
+        initChangeStatusHandler()
     }
 
-    func moveToBackground() {
+    func shutdown() {
         requestCancellable?.cancel()
+        statusCancellable?.cancel()
 
         stopSynthesize()
         voiceAssistant.stopListening()
         removeMessages(messageTypes: [.recognizing])
+
+        reachability.stopNotifier()
+        activityStream = nil
+    }
+
+    func moveToBackground() {
+        shutdown()
     }
 
     func moveToForeground() {
+        do {
+            try reachability.startNotifier()
+        } catch {
+            print("Unable to start notifier")
+        }
+
         initActivityStream()
+        initChangeStatusHandler()
+    }
+
+    func initReachability() {
+        reachability.whenReachable = { [self] reachability in
+            displayGeneralErrorMessage()
+        }
+
+        reachability.whenUnreachable = { [self] _ in
+            displayGeneralErrorMessage("No internet connection")
+        }
+
+        do {
+            try reachability.startNotifier()
+        } catch {
+            print("Unable to start notifier")
+        }
+    }
+
+    func initChangeStatusHandler() {
+        statusCancellable = directLine?.state
+            .receive(on: DispatchQueue.main)
+            .sink(receiveValue: { (botConnectionState) in
+
+                switch botConnectionState {
+                case .ready(_):
+                    self.displayGeneralErrorMessage()
+                case .connectingFailed:
+                    self.displayGeneralErrorMessage("No internet connection")
+                default:
+                    break
+                }
+
+                //print("botConnectionState: \(botConnectionState)")
+            })
     }
 
     func initActivityStream() {
@@ -126,6 +181,8 @@ open class BotAssistant: ObservableObject {
             errorDescription = message
         case .failedToConnect(let message):
             errorDescription = message
+        case .socketPing(_):
+            displayGeneralErrorMessage("Socket connection error")
         default:
             errorDescription = nil
         }
@@ -133,6 +190,16 @@ open class BotAssistant: ObservableObject {
         if let errorDescription = errorDescription {
             let errorInformation = MessageInfo(errorMessage: errorDescription)
             self.handleMessage(errorInformation)
+        }
+    }
+
+    func displayGeneralErrorMessage(_ text: String? = nil) {
+        if let text = text {
+            if (messages.connectionErrorDescription == nil) {
+                messages.connectionErrorDescription = text
+            }
+        } else {
+            messages.connectionErrorDescription = nil
         }
     }
 
@@ -278,11 +345,5 @@ open class BotAssistant: ObservableObject {
         allowSynthesize = false
         messages.speechList.removeAll()
         voiceAssistant.stopSynthesize()
-    }
-
-    func shutdown() {
-        stopSynthesize()
-        voiceAssistant.stopListening()
-        waitTimer?.invalidate()
     }
 }
