@@ -47,16 +47,20 @@ open class BotAssistant: ObservableObject {
         initChangeStatusHandler()
     }
 
-    func moveToBackground() {
+    func shutdown() {
         requestCancellable?.cancel()
         statusCancellable?.cancel()
-        
+
         stopSynthesize()
         voiceAssistant.stopListening()
         removeMessages(messageTypes: [.recognizing])
 
         reachability.stopNotifier()
         activityStream = nil
+    }
+
+    func moveToBackground() {
+        shutdown()
     }
 
     func moveToForeground() {
@@ -341,11 +345,5 @@ open class BotAssistant: ObservableObject {
         allowSynthesize = false
         messages.speechList.removeAll()
         voiceAssistant.stopSynthesize()
-    }
-
-    func shutdown() {
-        stopSynthesize()
-        voiceAssistant.stopListening()
-        waitTimer?.invalidate()
     }
 }
